@@ -1,0 +1,12 @@
+{
+  "mode": "insertion",
+  "flights": [
+    { "code": "SKY300", "origin": "BOG", "destination": "MIA", "base_price": 800000, "passengers": 200, "promotion": 0, "priority": 5 },
+    { "code": "SKY100", "origin": "MED", "destination": "BOG", "base_price": 150000, "passengers": 120, "promotion": 0, "priority": 3 },
+    { "code": "SKY500", "origin": "CTG", "destination": "MAD", "base_price": 1200000, "passengers": 180, "promotion": 50000, "priority": 4 },
+    { "code": "SKY050", "origin": "CLO", "destination": "CTG", "base_price": 200000, "passengers": 90, "promotion": 10000, "priority": 2 },
+    { "code": "SKY200", "origin": "BOG", "destination": "NYC", "base_price": 950000, "passengers": 160, "promotion": 0, "priority": 5 },
+    { "code": "SKY400", "origin": "BAQ", "destination": "BOG", "base_price": 180000, "passengers": 75, "promotion": 0, "priority": 1 },
+    { "code": "SKY150", "origin": "VUP", "destination": "MED", "base_price": 120000, "passengers": 60, "promotion": 0, "priority": 2 }
+  ]
+}

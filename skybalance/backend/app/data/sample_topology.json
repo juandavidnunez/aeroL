@@ -1,0 +1,34 @@
+{
+  "mode": "topology",
+  "tree": {
+    "code": "SKY100",
+    "origin": "BOG",
+    "destination": "MED",
+    "base_price": 150000,
+    "passengers": 120,
+    "promotion": 0,
+    "priority": 3,
+    "left": {
+      "code": "SKY050",
+      "origin": "CLO",
+      "destination": "CTG",
+      "base_price": 200000,
+      "passengers": 90,
+      "promotion": 10000,
+      "priority": 2,
+      "left": null,
+      "right": null
+    },
+    "right": {
+      "code": "SKY150",
+      "origin": "BAQ",
+      "destination": "BOG",
+      "base_price": 180000,
+      "passengers": 75,
+      "promotion": 0,
+      "priority": 4,
+      "left": null,
+      "right": null
+    }
+  }
+}
