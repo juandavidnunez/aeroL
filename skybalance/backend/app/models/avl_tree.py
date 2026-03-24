@@ -19,24 +19,151 @@ class AVLTree:
 
     def insert(self, node: FlightNode) -> None:
         """Insert a FlightNode and rebalance (unless stress_mode)."""
-        # TODO: implement recursive AVL insert + rotations
-        pass
+        if self.root is None:
+            node.left = node.right = node.parent = None
+            self.root = node
+            self._update_height(node)
+            return
+
+        self.root = self._insert_recursive(self.root, node)
+        self.root.parent = None
+
+    def _insert_recursive(self, root: FlightNode, node: FlightNode) -> FlightNode:
+        if root is None:
+            node.left = node.right = node.parent = None
+            return node
+
+        if node.code < root.code:
+            root.left = self._insert_recursive(root.left, node)
+            root.left.parent = root
+        elif node.code > root.code:
+            root.right = self._insert_recursive(root.right, node)
+            root.right.parent = root
+        else:
+            return root
+
+        self._update_height(root)
+        balance = self._get_balance(root)
+
+        if balance > 1 and node.code < root.left.code:
+            return self._rotate_right(root)
+
+        if balance < -1 and node.code > root.right.code:
+            return self._rotate_left(root)
+
+        if balance > 1 and node.code > root.left.code:
+            root.left = self._rotate_left(root.left)
+            root.left.parent = root
+            return self._rotate_right(root)
+
+        if balance < -1 and node.code < root.right.code:
+            root.right = self._rotate_right(root.right)
+            root.right.parent = root
+            return self._rotate_left(root)
+
+        return root
 
     def delete(self, code: str) -> bool:
         """Delete a single node. Returns True if found and deleted."""
-        # TODO: implement standard BST delete + AVL rebalance
-        pass
+        self.root, deleted = self._delete_recursive(self.root, code)
+        if self.root:
+            self.root.parent = None
+        return deleted
+
+    def _min_value_node(self, node: FlightNode) -> FlightNode:
+        current = node
+        while current.left is not None:
+            current = current.left
+        return current
+
+    def _delete_recursive(self, root: Optional[FlightNode], code: str) -> tuple[Optional[FlightNode], bool]:
+        if root is None:
+            return None, False
+
+        deleted = False
+        if code < root.code:
+            root.left, deleted = self._delete_recursive(root.left, code)
+            if root.left:
+                root.left.parent = root
+        elif code > root.code:
+            root.right, deleted = self._delete_recursive(root.right, code)
+            if root.right:
+                root.right.parent = root
+        else:
+            deleted = True
+            if root.left is None:
+                temp = root.right
+                return temp, True
+            elif root.right is None:
+                temp = root.left
+                return temp, True
+            else:
+                temp = self._min_value_node(root.right)
+                root.code = temp.code
+                root.origin = temp.origin
+                root.destination = temp.destination
+                root.base_price = temp.base_price
+                root.passengers = temp.passengers
+                root.promotion = temp.promotion
+                root.penalty = temp.penalty
+                root.is_critical = temp.is_critical
+                root.priority = temp.priority
+                root.alerts = temp.alerts[:]
+                root.right, _ = self._delete_recursive(root.right, temp.code)
+
+        if root is None:
+            return None, deleted
+
+        self._update_height(root)
+        balance = self._get_balance(root)
+
+        if balance > 1 and self._get_balance(root.left) >= 0:
+            return self._rotate_right(root), deleted
+
+        if balance > 1 and self._get_balance(root.left) < 0:
+            root.left = self._rotate_left(root.left)
+            if root.left:
+                root.left.parent = root
+            return self._rotate_right(root), deleted
+
+        if balance < -1 and self._get_balance(root.right) <= 0:
+            return self._rotate_left(root), deleted
+
+        if balance < -1 and self._get_balance(root.right) > 0:
+            root.right = self._rotate_right(root.right)
+            if root.right:
+                root.right.parent = root
+            return self._rotate_left(root), deleted
+
+        return root, deleted
 
     def cancel(self, code: str) -> int:
         """Remove node AND all its descendants. Returns count removed."""
-        # TODO: implement subtree removal
-        self.mass_cancellation_count += 1
-        return 0
+        node = self.search(code)
+        if node is None:
+            return 0
+        to_remove = self._count_subtree(node)
+        self.delete(code)
+        self.mass_cancellation_count += to_remove
+        return to_remove
+
+    def _count_subtree(self, node: Optional[FlightNode]) -> int:
+        if node is None:
+            return 0
+        return 1 + self._count_subtree(node.left) + self._count_subtree(node.right)
 
     def search(self, code: str) -> Optional[FlightNode]:
         """Return node with given code or None."""
-        # TODO: implement
-        return None
+        return self._search_recursive(self.root, code)
+
+    def _search_recursive(self, root: Optional[FlightNode], code: str) -> Optional[FlightNode]:
+        if root is None:
+            return None
+        if code == root.code:
+            return root
+        if code < root.code:
+            return self._search_recursive(root.left, code)
+        return self._search_recursive(root.right, code)
 
     def update(self, code: str, **kwargs) -> bool:
         """Update fields of an existing node. Returns True if found."""
@@ -51,10 +178,48 @@ class AVLTree:
     # ── Traversals ──────────────────────────────────────────
 
     def inorder(self) -> list:
-        """Left -> Root -> Right"""
+        """Left -> Root -> Right  returns list of nodes in sorted order by code??."""
         result = []
-        # TODO: implement
+        self.inorder_recursive(self.root, result)
         return result
+    
+    def inorder_recursive(self, node: Optional[FlightNode], result: list) -> None:
+        """Recursive helper for inorder traversal."""
+        if node is None:
+            return
+        self.inorder_recursive(node.left, result)
+        result.append(node)
+        self.inorder_recursive(node.right, result)
+
+
+
+    def bfs(self) -> list:
+        """Update fields of an existing node. Returns True if found."""
+        node = self.search(code)
+        if node is None:
+            return False
+        for key, value in kwargs.items():
+            if hasattr(node, key):
+                setattr(node, key, value)
+        return True
+
+    # ── Traversals ──────────────────────────────────────────
+
+    def inorder(self) -> list:
+        """Left -> Root -> Right  returns list of nodes in sorted order by code??."""
+        result = []
+        self._inorder_recursive(self.root, result)
+        return result
+    
+    def inorder_recursive(self, node: Optional[FlightNode], result: list) -> None:
+        """Recursive helper for inorder traversal."""
+        if node is not None:
+            return
+        self.inorder_recursive(node.left, result)
+        result.append(node)
+        self.inorder_recursive(node.right, result)
+
+
 
     def bfs(self) -> list:
         """Breadth-First Search"""

@@ -31,6 +31,7 @@ class FlightNode:
     # Tree links
     left: Optional["FlightNode"] = field(default=None, repr=False)
     right: Optional["FlightNode"] = field(default=None, repr=False)
+    parent: Optional["FlightNode"] = field(default=None, repr=False)
 
     @property
     def final_price(self) -> float:
