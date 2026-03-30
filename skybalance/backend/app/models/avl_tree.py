@@ -1,4 +1,5 @@
 from __future__ import annotations
+from platform import node
 from typing import Optional
 from app.models.flight_node import FlightNode
 
@@ -21,7 +22,22 @@ class AVLTree:
     def insert(self, node: FlightNode) -> None:
         """Insert a FlightNode and rebalance (unless stress_mode)."""
         # TODO: implement recursive AVL insert + rotations
-        pass
+        if self.root is None:
+            self.root = node
+        else:
+            self._insert_recursive(self.root, node)
+
+    def _insert_recursive(self, current: FlightNode, new_node: FlightNode) -> None:
+        if new_node.code < current.code:
+            if current.left is None:
+                current.left = new_node
+            else:
+                self._insert_recursive(current.left, new_node)
+        else:
+            if current.right is None:
+                current.right = new_node
+            else:
+                self._insert_recursive(current.right, new_node)
 
     def delete(self, code: str) -> bool:
         """Delete a single node. Returns True if found and deleted."""
@@ -37,10 +53,18 @@ class AVLTree:
 
     def search(self, code: str) -> Optional[FlightNode]:
         """Return node with given code or None."""
-        # TODO: implement
-        return None
+        return self._search_recursive(self.root, code)
 
-
+    def _search_recursive(self, node: Optional[FlightNode], code: str) -> Optional[FlightNode]:
+        if node is None:
+            return None
+        if code == node.code:
+            return node
+        elif code < node.code:
+            return self._search_recursive(node.left, code)
+        else:
+            return self._search_recursive(node.right, code)
+        
     def update(self, code: str, **kwargs) -> bool:
         """
         Actualiza atributos de un nodo existente.
@@ -61,16 +85,16 @@ class AVLTree:
     def inorder(self) -> list:
         """Left -> Root -> Right"""
         result = []
-        # TODO: implement
+        self._inorder_recursive(self.root, result)
         return result
     
-    def inorder_recursive(self, node: Optional[FlightNode], result: list) -> None:
+    def _inorder_recursive(self, node: Optional[FlightNode], result: list) -> None:
         """Recursive helper for inorder traversal."""
-        if node is not None:
+        if node is None:
             return
-        self.inorder_recursive(node.left, result)
+        self._inorder_recursive(node.left, result)
         result.append(node)
-        self.inorder_recursive(node.right, result)
+        self._inorder_recursive(node.right, result)
 
 
 
@@ -80,19 +104,34 @@ class AVLTree:
         Recorrido por niveles (anchura)
         """
         result = []
-        # TODO
-        return result
-
-
+        if self.root is None:
+            return result
+        queue = [self.root]
+        while queue:
+            node= queue.pop(0)
+            result.append(node)
+            if node.left:
+                queue.append(node.left)
+            if node.right:
+                queue.append(node.right)
+        return result   
+    
     def dfs_preorder(self) -> list:
         """
         Recorrido en preorden:
         Raíz → Izquierda → Derecha
         """
         result = []
-        # TODO
+        self._preorder_recursive(self.root, result)
         return result
 
+    def _preorder_recursive(self, node: Optional[FlightNode], result: list) -> None:
+        """Recursive helper for preorder traversal."""
+        if node is None:
+            return
+        result.append(node)
+        self._preorder_recursive(node.left, result)
+        self._preorder_recursive(node.right, result)
 
     # ── Métricas ─────────────────────────────────────────────
 
@@ -100,7 +139,7 @@ class AVLTree:
         """
         Altura total del árbol
         """
-        # TODO
+        return self._get_height(self.root)
         return 0
 
 
@@ -108,17 +147,28 @@ class AVLTree:
         """
         Cuenta nodos hoja (sin hijos)
         """
-        # TODO
+        return self._count_leaves(self.root)
         return 0
 
 
+    def _count_leaves(self, node: Optional[FlightNode]) -> int:
+        if node is None:
+            return 0
+        if node.left is None and node.right is None:
+            return 1
+        return self._count_leaves(node.left) + self._count_leaves(node.right)
+    
     def node_count(self) -> int:
         """
         Cuenta todos los nodos del árbol
         """
-        # TODO
-        return 0
-
+        return self._count_nodes(self.root)
+    
+    def _count_nodes(self, node: Optional[FlightNode]) -> int:
+        if node is None:
+            return 0
+        return 1 + self._count_nodes(node.left) + self._count_nodes(node.right)
+    
 
     # ── Auditoría AVL ───────────────────────────────────────────
 

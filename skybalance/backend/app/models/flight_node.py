@@ -1,6 +1,6 @@
 """
-FlightNode: representa un vuelo individual dentro del árbol AVL.
-Contiene toda la información del vuelo + atributos estructurales del árbol.
+FlightNode: represent one individual flight within the AVL tree.
+Contains all the information about the flight + structural attributes of the tree.
 """
 
 from __future__ import annotations
@@ -44,24 +44,22 @@ class FlightNode:
     @property
     def final_price(self) -> float:
         """
-        Calcula el precio final del vuelo.
-
-        Fórmula:
-        precio_final = base_price + penalty - promotion
-
-        Se asegura que el precio nunca sea negativo.
+       Calculate the final price of the flight after applying promotion and penalty.
+        Formula:
+            final_price = max(base_price + penalty - promotion, 0)
+            This ensures that the final price cannot be negative, which could happen if the promotion exceeds the sum of the base price and penalty.
         """
         return max(self.base_price + self.penalty - self.promotion, 0.0)
 
     @property
     def profitability(self) -> float:
         """
-        Calcula la rentabilidad del vuelo.
+        Calculate the rentability of the flight based on passengers, final price, promotion, and penalty.
 
-        Fórmula:
-        rentabilidad = (pasajeros * precio_final) - promoción + penalización
+        FFormula:
+        rentability = (passengers * final_price) - promotion + penalty
 
-        Esto permite saber qué tan rentable es un vuelo
-        para tomar decisiones como eliminaciones o prioridades.
+        This allows us to determine how profitable a flight is
+        to make decisions such as eliminations or priorities.
         """
         return self.passengers * self.final_price - self.promotion + self.penalty

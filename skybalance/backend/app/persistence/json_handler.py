@@ -1,147 +1,209 @@
+# app/persistence/json_handler.py
 import json
-from tkinter import filedialog
-"a filedialog is used to select the file to save or load the data from"
-from tkinter import Tk
-" a TK is used to create a root window for the filedialog to work"
-from typing import Optional, Dict, Any
-"Optional is used to indicate that a variable can be of a certain type or None, Dict is used to indicate that a variable is a dictionary, and Any is used to indicate that a variable can be of any type"
+from platform import node
+from typing import Dict, Any, Optional, List
 from app.models.avl_tree import AVLTree
 from app.models.bst_tree import BSTTree
 from app.models.flight_node import FlightNode
 
+
 class JSONHandler:
-
     def __init__(self, avl_tree: AVLTree, bst_tree: BSTTree):
-        self.avl_tree = avl_tree
-        self.bst_tree = bst_tree
-        self.current_file: Optional[str] = None
+        self.avl = avl_tree
+        self.bst = bst_tree
     
-    def select_file(self) -> Optional[str]:
-        """Open a file dialog to select a JSON file."""
-        root = Tk()
-        root.withdraw()  # Hide the root window
-        file_path = filedialog.askopenfilename(
-            title="Select JSON file",
-            filetypes=[("JSON files", "*.json")]
-        )
-        root.destroy()  # Destroy the root window after selection   
-        return file_path if file_path else None
-    
-    def load_from_file(self, file_path: Optional[str] = None) -> Dict[str, Any]:
-        """Load AVL and BST data from a JSON file."""
-        if file_path is None:
-            file_path = self.select_file()
-            if file_path is None:
-                return  {"success": False, "message": "No file selected"}  # No file selected
+
+
+    def process_json_content(self, content: str) -> Dict[str, Any]:
         try:
-            with open(file_path, 'r', encoding = 'utf-8') as f:
-                data = json.load(f) #Convert JSON data to a Python dictionary
-
-            self.current_file = file_path
+            data = json.loads(content)
+            print("✅ JSON parseado correctamente")
+            print("📄 Claves del JSON:", list(data.keys()))
             return self._process_json(data)
-        
+        except json.JSONDecodeError as e:
+            print(f"❌ Error JSON: {e}")
+            return {"success": False, "message": f"Error parsing JSON: {str(e)}"}
         except Exception as e:
-            return {"success": False, "message": f"Error loading file: {str(e)}"}
+            print(f"❌ Error general: {type(e).__name__} - {e}")  # ← Esto mostrará el error real
+            import traceback
+            traceback.print_exc()  # ← Imprime toda la pila del error
+            return {"success": False, "message": f"Error: {str(e)}"}
         
-    def _process_json(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process the loaded JSON data and populate AVL and BST trees.
-        First the topology structure is loaded, then the AVL and BST trees are populated with the flight nodes.
-        Secondly, the list of flight nodes is loaded and inserted into the AVL and BST trees."""
 
+    
+    def _process_json(self, data: Dict) -> Dict[str, Any]:
+        # Si tiene "codigo" (español), es un nodo suelto
+        if "codigo" in data:
+            return self._load_topology({"root": data})
+        
+        # Si tiene "root" o "raiz"
         if "root" in data or "raiz" in data:
             return self._load_topology(data)
-        elif "flights" in data or "vuelos" in data or "lista" in data:
+        
+        # Si tiene "vuelos" o "flights"
+        if "vuelos" in data or "flights" in data or "lista" in data:
             return self._load_insertion_list(data)
-        else: 
-            return {"success": False, "message": "Invalid JSON structure: missing 'root' or 'flights' key"}
+        
+        # Si tiene "code" (inglés)
+        if "code" in data:
+            return self._load_topology({"root": data})
+        
+        return {"success": False, "message": f"Formato no reconocido. Claves: {list(data.keys())}"}
+                
+    # ── FORMATO TOPOLOGÍA ──────────────────────────────────────
     
-    def _load_topology(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Load the topology structure from the JSON data and populate AVL and BST trees."""
+    def _load_topology(self, data: Dict) -> Dict[str, Any]:
         try:
-            self.avl_tree.root = None
-            self.bst_tree.root = None
-
-            root_data = data.get("root") or data.get("raiz")
-            if root_data is None:
-                return {"success": False, "message": "Invalid JSON structure: missing 'root' key"}
-
-            self.avl_tree.root = self._build_avl_tree(root_data)
-            self.bst_tree.root = self._build_bst_tree(root_data)
-            return {"success": True, "message": "Topology loaded successfully"}
-
+            self.avl.root = None
+            self.bst.root = None
+            
+            # Si el JSON tiene "root" o "raiz", úsalo; si no, asume que el objeto es la raíz
+            if "root" in data:
+                root_data = data["root"]
+            elif "raiz" in data:
+                root_data = data["raiz"]
+            else:
+                root_data = data  # ← El JSON completo es la raíz
+            
+            self.avl.root = self._build_node_from_dict(root_data)
+            
+            # Construir BST a partir del AVL para comparación
+            self._build_bst_from_avl()
+            
+            # Calcular métricas
+            avl_height = self.avl.height() if hasattr(self.avl, 'height') else 0
+            avl_leaves = self.avl.leaf_count() if hasattr(self.avl, 'leaf_count') else 0
+            
+            return {
+                "success": True,
+                "message": "Árbol cargado exitosamente desde topología",
+                "format": "topology",
+                "avl": {
+                    "node_count": self.avl.node_count(),
+                    "height": avl_height,
+                    "leaf_count": avl_leaves
+                },
+                "bst": {
+                    "node_count": self._bst_node_count(self.bst.root),
+                    "height": self._bst_height(self.bst.root),
+                    "leaf_count": self._bst_leaf_count(self.bst.root)
+                }
+            }
+            
         except Exception as e:
-            return {"success": False, "message": f"Error processing topology: {str(e)}"}
-
-    def _build_avl_tree(self, data: Dict[str, Any]) -> Optional[FlightNode]:
-        """Build tree node references from topology JSON for AVL."""
-        return self._build_node_from_dict(data)
-
-    def _build_bst_tree(self, data: Dict[str, Any]) -> Optional[FlightNode]:
-        """Build tree node references from topology JSON for BST."""
-        return self._build_node_from_dict(data)
+            return {"success": False, "message": f"Error cargando topología: {str(e)}"}
+    
 
     def _build_node_from_dict(self, data: Dict) -> Optional[FlightNode]:
-        """Recursively build a FlightNode from a dictionary. This is used for both AVL and BST tree construction."""
         if not data:
             return None
         
-        # Create the FlightNode from the dictionary data
+        # Acepta nombres en español E inglés
         node = FlightNode(
-            code=data["code"],
-            origin=data.get("origin", ""),
-            destination=data.get("destination", ""),
-            base_price=data.get("base_price", 0.0),
-            passengers=data.get("passengers", 0),
-            promotion=data.get("promotion", 0.0),
-            penalty=data.get("penalty", 0.0),
-            is_critical=data.get("is_critical", False),
-            priority=data.get("priority", 1),
-            alerts=data.get("alerts", [])
+            code=str(data.get("codigo", data.get("code", ""))),  # ← español e inglés
+            origin=data.get("origen", data.get("origin", "")),
+            destination=data.get("destino", data.get("destination", "")),
+            base_price=float(data.get("precioBase", data.get("base_price", 0))),
+            passengers=int(data.get("pasajeros", data.get("passengers", 0))),
+            promotion=float(data.get("promocion", data.get("promotion", 0))),
+            penalty=float(data.get("penalizacion", data.get("penalty", 0))),
+            is_critical=bool(data.get("es_critico", data.get("is_critical", False))),
+            priority=int(data.get("prioridad", data.get("priority", 1))),
+            alerts=data.get("alertas", data.get("alerts", []))
         )
         
-        # Set AVL-specifica fields if they exist in the data
-        node.height = data.get("height", 1)
-        node.balance_factor = data.get("balance_factor", 0)
+        node.height = int(data.get("altura", data.get("height", 1)))
+        node.balance_factor = int(data.get("factorEquilibrio", data.get("balance_factor", 0)))
         
-        # Build children recursively
-        if "left" in data and data["left"]:
-            node.left = self._build_node_from_dict(data["left"])
-            node.left.parent = node
+        # Acepta izquierdo/derecho en español
+        left_data = data.get("izquierdo", data.get("left"))
+        if left_data:
+            node.left = self._build_node_from_dict(left_data)
+            if node.left:
+                node.left.parent = node
         
-        if "right" in data and data["right"]:
-            node.right = self._build_node_from_dict(data["right"])
-            node.right.parent = node
+        right_data = data.get("derecho", data.get("right"))
+        if right_data:
+            node.right = self._build_node_from_dict(right_data)
+            if node.right:
+                node.right.parent = node
         
         return node
 
-    def _load_insertion_list(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Load the list of flight nodes from the JSON data and insert the nodes in AVL and BST trees."""
+    
+    def _load_insertion_list(self, data: Dict) -> Dict[str, Any]:
+        """Loads flights one by one (with automatic balancing in AVL)"""
         try:
-            self.avl_tree.root = None
-            self.bst_tree.root = None
-
-            flights = data.get("flights") or data.get("vuelos") or data.get("lista")
-            if not flights or not isinstance(flights, list):
-                return {"success": False, "message": "Invalid JSON structure: missing or invalid 'flights' array"}
-
+            # Limpiar árboles
+            self.avl.root = None
+            self.bst.root = None
+            
+            # Obtener lista de vuelos
+            flights = data.get("flights", data.get("vuelos", data.get("lista", [])))
+            
+            if not flights:
+                return {"success": False, "message": "Lista de vuelos vacía"}
+            
+            avl_count = 0
+            bst_count = 0
+            errors = []
+            
             for flight_data in flights:
-                node = FlightNode.from_dict(flight_data)
-                self.avl_tree.insert(node)
-                self.bst_tree.insert(node)
-
-            return {"success": True, "message": "Insertion list loaded successfully", "count": len(flights)}
-
+                try:
+                    # Crear nodo
+                    node = FlightNode(
+                        code=flight_data.get("code", ""),
+                        origin=flight_data.get("origin", ""),
+                        destination=flight_data.get("destination", ""),
+                        base_price=flight_data.get("base_price", flight_data.get("precio_base", 0.0)),
+                        passengers=flight_data.get("passengers", flight_data.get("pasajeros", 0)),
+                        promotion=flight_data.get("promotion", flight_data.get("promocion", 0.0)),
+                        priority=flight_data.get("priority", flight_data.get("prioridad", 1))
+                    )
+                    
+                    # Insert en AVL (con balanceo)
+                    self.avl.insert(node)
+                    avl_count += 1
+                    
+                    # Insertar en BST (sin balanceo) para comparación
+                    self._insert_bst(node)
+                    bst_count += 1
+                    
+                except Exception as e:
+                    errors.append(f"Error en vuelo {flight_data.get('code', 'desconocido')}: {str(e)}")
+            
+            # Calcular métricas
+            avl_height = self.avl.height() if hasattr(self.avl, 'height') else 0
+            avl_leaves = self.avl.leaf_count() if hasattr(self.avl, 'leaf_count') else 0
+            
+            return {
+                "success": True,
+                "message": f"Insertados {avl_count} vuelos en AVL y {bst_count} en BST",
+                "format": "insertion_list",
+                "avl": {
+                    "node_count": self.avl.node_count(),
+                    "height": avl_height,
+                    "leaf_count": avl_leaves
+                },
+                "bst": {
+                    "node_count": self._bst_node_count(self.bst.root),
+                    "height": self._bst_height(self.bst.root),
+                    "leaf_count": self._bst_leaf_count(self.bst.root)
+                },
+                "errors": errors if errors else None
+            }
+            
         except Exception as e:
-            return {"success": False, "message": f"Error processing insertion list: {str(e)}"}
-
-
+            return {"success": False, "message": f"Error insertando lista: {str(e)}"}
+    
+    
     def _insert_bst(self, node: FlightNode) -> None:
-        """Insert a node into the BST without balancing. This is used when building the BST from the AVL topology."""
-        if self.bst_tree.root is None:
-            self.bst_tree.root = node
+        """Inserta en BST sin balanceo"""
+        if self.bst.root is None:
+            self.bst.root = node
             return
-
-        current = self.bst_tree.root
+        
+        current = self.bst.root
         while True:
             if node.code < current.code:
                 if current.left is None:
@@ -157,21 +219,32 @@ class JSONHandler:
                 current = current.right
     
     def _bst_node_count(self, node: Optional[FlightNode]) -> int:
-        """Count the number of nodes in the BST. This is used for metadata when exporting to JSON."""
+        """Cuenta nodos en BST"""
         if node is None:
             return 0
         return 1 + self._bst_node_count(node.left) + self._bst_node_count(node.right)
     
+    def _bst_height(self, node: Optional[FlightNode]) -> int:
+        """Calcula altura del BST"""
+        if node is None:
+            return 0
+        return 1 + max(self._bst_height(node.left), self._bst_height(node.right))
+    
+    def _bst_leaf_count(self, node: Optional[FlightNode]) -> int:
+        """Cuenta hojas en BST"""
+        if node is None:
+            return 0
+        if node.left is None and node.right is None:
+            return 1
+        return self._bst_leaf_count(node.left) + self._bst_leaf_count(node.right)
+    
     def _build_bst_from_avl(self) -> None:
-        """Build the BST tree from the AVL tree topology. This is used when loading a topology JSON to ensure both trees have the same structure."""
-        self.bst_tree.root = None
-
+        """Construye BST a partir del AVL (para comparación en modo topología)"""
         # Obtener todos los nodos del AVL en inorder
-        nodes = self.avl_tree.inorder() if hasattr(self.avl_tree, 'inorder') else []
+        nodes = self.avl.inorder() if hasattr(self.avl, 'inorder') else []
         
         # Insertar en BST sin balanceo
         for node in nodes:
-            # Crear nuevo nodo (sin relaciones)
             new_node = FlightNode(
                 code=node.code,
                 origin=node.origin,
@@ -186,38 +259,35 @@ class JSONHandler:
             )
             self._insert_bst(new_node)
     
-    def export_to_file(self, file_path: Optional[str] = None) -> Dict[str, Any]:
-        """Export the current AVL and BST tree data to a JSON file. If no file path is provided, a file dialog will be opened to select the save location."""
-        if not file_path:
-            file_path = self.select_file()
-            if not file_path:
-                return {"success": False, "message": "No se seleccionó archivo"}
-        
+
+    def export_to_json(self) -> Dict[str, Any]:
+        """Exporta árbol actual a diccionario (para enviar al frontend)"""
         try:
             # Convertir árbol a diccionario
-            tree_dict = self._node_to_dict(self.avl_tree.root)
+            tree_dict = self._node_to_dict(self.avl.root)
             
-            # Agregar metadata
-            output = {
+            # Calcular métricas
+            avl_height = self.avl.height() if hasattr(self.avl, 'height') else 0
+            avl_leaves = self.avl.leaf_count() if hasattr(self.avl, 'leaf_count') else 0
+            
+            return {
+                "success": True,
                 "metadata": {
-                    "node_count": self.avl_tree.node_count() if hasattr(self.avl_tree, 'node_count') else 0,
-                    "height": self.avl_tree.height() if hasattr(self.avl_tree, 'height') else 0,
-                    "rotations": self.avl_tree.rotations if hasattr(self.avl_tree, 'rotations') else {},
+                    "node_count": self.avl.node_count(),
+                    "height": avl_height,
+                    "leaf_count": avl_leaves,
+                    "rotations": self.avl.rotations,
+                    "mass_cancellations": self.avl.mass_cancellation_count,
                     "export_date": str(__import__('datetime').datetime.now())
                 },
                 "root": tree_dict
             }
             
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(output, f, indent=2, ensure_ascii=False)
-            
-            return {"success": True, "message": f"Exportado a {file_path}"}
-            
         except Exception as e:
-            return {"success": False, "message": f"Error exportando: {str(e)}"}
+            return {"success": False, "message": f"Error exportando árbol: {str(e)}"}
     
     def _node_to_dict(self, node: Optional[FlightNode]) -> Optional[Dict]:
-        """Convert a node and its subtree to a dictionary recursively"""
+        """Convierte nodo y subárbol a diccionario recursivamente"""
         if node is None:
             return None
         
