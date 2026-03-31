@@ -11,6 +11,7 @@ class FlightCreate(BaseModel):
     priority: int = Field(default=1, ge=1, le=5)
 
 class FlightUpdate(BaseModel):
+    code: Optional[str] = None  
     origin: Optional[str] = None
     destination: Optional[str] = None
     base_price: Optional[float] = None
