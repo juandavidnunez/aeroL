@@ -17,6 +17,7 @@ class BSTTree:
         """Insert without any balancing."""
         node.left = None
         node.right = None
+        node.parent = None
         node.height = 1
         node.balance_factor = 0
         self.root = self._insert(self.root, node)
@@ -39,8 +40,12 @@ class BSTTree:
 
         if node.code < current.code:
             current.left = self._insert(current.left, node)
+            if current.left is not None:
+                current.left.parent = current
         elif node.code > current.code:
             current.right = self._insert(current.right, node)
+            if current.right is not None:
+                current.right.parent = current
         else:
             current.origin = node.origin
             current.destination = node.destination
@@ -58,7 +63,9 @@ class BSTTree:
         return current
 
     def _height(self, node: Optional[FlightNode]) -> int:
-        return node.height if node else 0
+        if node is None:
+            return 0
+        return 1 + max(self._height(node.left), self._height(node.right))
 
     def _leaf_count(self, node: Optional[FlightNode]) -> int:
         if node is None:

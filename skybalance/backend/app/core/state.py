@@ -8,6 +8,8 @@ avl_tree: AVLTree = AVLTree()
 bst_tree: BSTTree = BSTTree()
 undo_stack: list = []
 named_versions: dict = {}
+
+
 insertion_queue: list = []
 stress_mode: bool = False
 critical_depth: int = 5

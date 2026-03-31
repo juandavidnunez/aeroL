@@ -1,11 +1,14 @@
-from fastapi import APIRouter, HTTPException, Query
-
-from app.core import state
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from app.schemas.tree_schema import LoadTreeRequest, TreeStatsResponse
 from app.services import tree_service
+from app.core import state
+from app.persistence.json_handler import JSONHandler
 
 router = APIRouter()
 
+
+def _json_handler() -> JSONHandler:
+    return JSONHandler(state.avl_tree, state.bst_tree)
 
 @router.post("/load")
 def load_tree(request: LoadTreeRequest):
@@ -15,11 +18,45 @@ def load_tree(request: LoadTreeRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/load-json")
+async def load_json_from_file(file: UploadFile = File(...)):
+    """
+    Receive the JSON file from the frontend (Angular)
+    """
+    print("🔵 Recibiendo archivo...")
+    print("🔵 Nombre:", file.filename)
+    print("🔵 Tipo:", file.content_type)
+    
+
+    # Leer el contenido del archivo
+    content = await file.read()
+    json_str = content.decode('utf-8')
+    
+    # Process with JSONHandler to load the tree
+    result = _json_handler().process_json_content(json_str)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message"))
+    
+    return result
+
 @router.get("/export")
 def export_tree(tree_type: str = Query("avl", pattern="^(avl|bst)$")):
     tree = state.avl_tree if tree_type == "avl" else state.bst_tree
     return tree.to_dict()
 
+
+@router.get("/export-json")
+def export_tree_json():
+    """
+    Export the current tree to JSON format for download from the frontend
+    """
+    result = _json_handler().export_to_json()
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("message"))
+    
+    return result
 
 @router.post("/undo")
 def undo():

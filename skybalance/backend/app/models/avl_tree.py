@@ -3,6 +3,7 @@ AVLTree: core AVL self-balancing binary search tree.
 Key = FlightNode.code (lexicographic comparison).
 """
 from __future__ import annotations
+
 from collections import deque
 from typing import Optional
 
@@ -17,12 +18,13 @@ class AVLTree:
         self.mass_cancellation_count: int = 0
         self.stress_mode: bool = False
 
-    # ── Public API ──────────────────────────────────────────
+    # ── API pública ─────────────────────────────────────────
 
     def insert(self, node: FlightNode) -> None:
-        """Insert a FlightNode and rebalance (unless stress_mode)."""
+        """Insert a flight node and rebalance unless stress mode is active."""
         node.left = None
         node.right = None
+        node.parent = None
         node.height = 1
         node.balance_factor = 0
         self.root = self._insert(self.root, node)
@@ -30,17 +32,21 @@ class AVLTree:
     def delete(self, code: str) -> bool:
         """Delete a single node. Returns True if found and deleted."""
         self.root, deleted = self._delete(self.root, code)
+        if self.root is not None:
+            self.root.parent = None
         return deleted
 
     def cancel(self, code: str) -> int:
-        """Remove node AND all its descendants. Returns count removed."""
+        """Remove a node and all its descendants. Returns the count removed."""
         self.root, removed = self._cancel_subtree(self.root, code)
+        if self.root is not None:
+            self.root.parent = None
         if removed > 0:
             self.mass_cancellation_count += 1
         return removed
 
     def search(self, code: str) -> Optional[FlightNode]:
-        """Return node with given code or None."""
+        """Return the node with the given code or None."""
         current = self.root
         while current is not None:
             if code == current.code:
@@ -49,10 +55,11 @@ class AVLTree:
         return None
 
     def update(self, code: str, **kwargs) -> bool:
-        """Update fields of an existing node. Returns True if found."""
+        """Update fields of an existing node."""
         node = self.search(code)
         if node is None:
             return False
+
         for key, value in kwargs.items():
             if hasattr(node, key):
                 setattr(node, key, value)
@@ -61,46 +68,28 @@ class AVLTree:
     # ── Traversals ──────────────────────────────────────────
 
     def inorder(self) -> list:
-        """Left -> Root -> Right"""
-        result = []
-
-        def _walk(node: Optional[FlightNode]) -> None:
-            if node is None:
-                return
-            _walk(node.left)
-            result.append(node.code)
-            _walk(node.right)
-
-        _walk(self.root)
+        result: list[FlightNode] = []
+        self._inorder_recursive(self.root, result)
         return result
 
     def bfs(self) -> list:
-        """Breadth-First Search"""
         if self.root is None:
             return []
-        result = []
+
+        result: list[FlightNode] = []
         queue = deque([self.root])
         while queue:
             node = queue.popleft()
-            result.append(node.code)
-            if node.left:
+            result.append(node)
+            if node.left is not None:
                 queue.append(node.left)
-            if node.right:
+            if node.right is not None:
                 queue.append(node.right)
         return result
 
     def dfs_preorder(self) -> list:
-        """Root -> Left -> Right"""
-        result = []
-
-        def _walk(node: Optional[FlightNode]) -> None:
-            if node is None:
-                return
-            result.append(node.code)
-            _walk(node.left)
-            _walk(node.right)
-
-        _walk(self.root)
+        result: list[FlightNode] = []
+        self._preorder_recursive(self.root, result)
         return result
 
     # ── Metrics ─────────────────────────────────────────────
@@ -114,13 +103,10 @@ class AVLTree:
     def node_count(self) -> int:
         return self._count_nodes(self.root)
 
-    # ── AVL Audit ───────────────────────────────────────────
+    # ── AVL validation ──────────────────────────────────────
 
     def verify_avl_property(self) -> dict:
-        """
-        Check every node: balance_factor in {-1,0,1} and height correct.
-        Returns report dict with list of inconsistent nodes.
-        """
+        """Check that heights and balance factors are consistent across the tree."""
         inconsistent_nodes = []
         total_nodes_checked = 0
 
@@ -159,62 +145,45 @@ class AVLTree:
             "total_nodes_checked": total_nodes_checked,
         }
 
-    # ── Stress / Global Rebalance ────────────────────────────
+    # ── Extra business operations ───────────────────────────
 
     def global_rebalance(self) -> dict:
-        """Re-run AVL insertions using the current nodes to restore balance."""
-        nodes = []
-
-        def _collect(node: Optional[FlightNode]) -> None:
-            if node is None:
-                return
-            _collect(node.left)
-            nodes.append(self._clone_node_data(node))
-            _collect(node.right)
-
-        _collect(self.root)
+        """Rebuild the tree from its current nodes to restore AVL balance."""
+        nodes = [self._clone_node_data(node) for node in self.inorder()]
         before_rotations = sum(self.rotations.values())
+
         self.root = None
         self.stress_mode = False
         for node in nodes:
             self.insert(node)
+
         after_rotations = sum(self.rotations.values())
         return {
             "rotations_applied": after_rotations - before_rotations,
             "nodes_fixed": len(nodes),
         }
 
-    # ── Depth Penalty ────────────────────────────────────────
-
     def apply_depth_penalties(self, critical_depth: int) -> None:
-        """
-        For each node at depth > critical_depth:
-          - set is_critical = True
-          - set penalty = base_price * 0.25
-        Otherwise clear flag and penalty.
-        """
+        """Mark deep nodes as critical and apply a penalty to their price."""
 
         def _walk(node: Optional[FlightNode], depth: int) -> None:
             if node is None:
                 return
+
             if depth > critical_depth:
                 node.is_critical = True
                 node.penalty = round(node.base_price * 0.25, 2)
             else:
                 node.is_critical = False
                 node.penalty = 0.0
+
             _walk(node.left, depth + 1)
             _walk(node.right, depth + 1)
 
         _walk(self.root, 0)
 
-    # ── Economic Elimination ─────────────────────────────────
-
     def find_least_profitable(self) -> Optional[FlightNode]:
-        """
-        Return node with lowest profitability.
-        Tiebreaker: deepest node; if still tied, largest code.
-        """
+        """Return the least profitable node, preferring deeper nodes on ties."""
         best: Optional[FlightNode] = None
         best_depth = -1
 
@@ -222,6 +191,7 @@ class AVLTree:
             nonlocal best, best_depth
             if node is None:
                 return
+
             if (
                 best is None
                 or node.profitability < best.profitability
@@ -232,75 +202,94 @@ class AVLTree:
             ):
                 best = node
                 best_depth = depth
+
             _walk(node.left, depth + 1)
             _walk(node.right, depth + 1)
 
         _walk(self.root, 0)
         return best
 
-    # ── Serialization ────────────────────────────────────────
+    # ── Serialization ───────────────────────────────────────
 
     def to_dict(self) -> dict:
-        """Serialize full tree to nested dict for JSON export."""
         return {"root": node_to_dict(self.root)}
 
-    def from_topology(self, data: dict) -> None:
-        """Reconstruct tree respecting parent->child topology from dict."""
+    def from_topology(self, data: Optional[dict]) -> None:
         if data is None:
             self.root = None
             return
 
         payload = data
-        if isinstance(data, dict) and "tree" in data:
-            payload = data["tree"]
-        elif isinstance(data, dict) and "root" in data:
-            payload = data["root"]
-        elif isinstance(data, dict) and "arbol" in data:
-            payload = data["arbol"]
-        elif isinstance(data, dict) and "raiz" in data:
-            payload = data["raiz"]
+        if isinstance(data, dict):
+            payload = data.get("tree") or data.get("root") or data.get("arbol") or data.get("raiz") or data
 
         self.root = self._build_from_dict(payload)
+        if self.root is not None:
+            self.root.parent = None
 
     def from_insertion_list(self, flights: list) -> None:
-        """Insert flights one by one triggering AVL balancing."""
         self.root = None
         for flight in flights:
-            self.insert(FlightNode(**flight))
+            node = flight if isinstance(flight, FlightNode) else dict_to_node(flight)
+            self.insert(node)
 
-    # ── Internal Rotation Helpers ────────────────────────────
+    # ── Internal helpers ────────────────────────────────────
+
+    def _inorder_recursive(self, node: Optional[FlightNode], result: list) -> None:
+        if node is None:
+            return
+        self._inorder_recursive(node.left, result)
+        result.append(node)
+        self._inorder_recursive(node.right, result)
+
+    def _preorder_recursive(self, node: Optional[FlightNode], result: list) -> None:
+        if node is None:
+            return
+        result.append(node)
+        self._preorder_recursive(node.left, result)
+        self._preorder_recursive(node.right, result)
 
     def _rotate_right(self, y: FlightNode) -> FlightNode:
-        """LL single rotation. Returns new subtree root."""
         x = y.left
         if x is None:
             return y
-        t2 = x.right
 
+        t2 = x.right
         x.right = y
         y.left = t2
+
+        x.parent = y.parent
+        y.parent = x
+        if t2 is not None:
+            t2.parent = y
 
         self._update_height(y)
         self._get_balance(y)
         self._update_height(x)
         self._get_balance(x)
+
         self.rotations["LL"] += 1
         return x
 
     def _rotate_left(self, x: FlightNode) -> FlightNode:
-        """RR single rotation. Returns new subtree root."""
         y = x.right
         if y is None:
             return x
-        t2 = y.left
 
+        t2 = y.left
         y.left = x
         x.right = t2
+
+        y.parent = x.parent
+        x.parent = y
+        if t2 is not None:
+            t2.parent = x
 
         self._update_height(x)
         self._get_balance(x)
         self._update_height(y)
         self._get_balance(y)
+
         self.rotations["RR"] += 1
         return y
 
@@ -310,8 +299,12 @@ class AVLTree:
 
         if node.code < current.code:
             current.left = self._insert(current.left, node)
+            if current.left is not None:
+                current.left.parent = current
         elif node.code > current.code:
             current.right = self._insert(current.right, node)
+            if current.right is not None:
+                current.right.parent = current
         else:
             self._copy_payload(current, node)
             return current
@@ -329,21 +322,39 @@ class AVLTree:
         deleted = False
         if code < node.code:
             node.left, deleted = self._delete(node.left, code)
+            if node.left is not None:
+                node.left.parent = node
         elif code > node.code:
             node.right, deleted = self._delete(node.right, code)
+            if node.right is not None:
+                node.right.parent = node
         else:
             deleted = True
             if node.left is None:
-                return node.right, True
+                child = node.right
+                if child is not None:
+                    child.parent = node.parent
+                return child, True
             if node.right is None:
-                return node.left, True
+                child = node.left
+                if child is not None:
+                    child.parent = node.parent
+                return child, True
 
             successor = self._min_value_node(node.right)
-            self._copy_payload(node, successor)
+            node.code = successor.code
+            node.origin = successor.origin
+            node.destination = successor.destination
+            node.base_price = successor.base_price
+            node.passengers = successor.passengers
+            node.promotion = successor.promotion
+            node.penalty = successor.penalty
+            node.is_critical = successor.is_critical
+            node.priority = successor.priority
+            node.alerts = list(successor.alerts)
             node.right, _ = self._delete(node.right, successor.code)
-
-        if node is None:
-            return None, deleted
+            if node.right is not None:
+                node.right.parent = node
 
         self._update_height(node)
         self._get_balance(node)
@@ -358,12 +369,16 @@ class AVLTree:
         removed = 0
         if code < node.code:
             node.left, removed = self._cancel_subtree(node.left, code)
+            if node.left is not None:
+                node.left.parent = node
         elif code > node.code:
             node.right, removed = self._cancel_subtree(node.right, code)
+            if node.right is not None:
+                node.right.parent = node
         else:
             return None, self._count_nodes(node)
 
-        if removed > 0 and node is not None:
+        if removed > 0:
             self._update_height(node)
             self._get_balance(node)
             if not self.stress_mode:
@@ -378,6 +393,8 @@ class AVLTree:
             if left_balance < 0 and node.left is not None:
                 self.rotations["LR"] += 1
                 node.left = self._rotate_left(node.left)
+                if node.left is not None:
+                    node.left.parent = node
             return self._rotate_right(node)
 
         if balance < -1:
@@ -385,6 +402,8 @@ class AVLTree:
             if right_balance > 0 and node.right is not None:
                 self.rotations["RL"] += 1
                 node.right = self._rotate_right(node.right)
+                if node.right is not None:
+                    node.right.parent = node
             return self._rotate_left(node)
 
         return node
@@ -392,11 +411,18 @@ class AVLTree:
     def _build_from_dict(self, data: Optional[dict]) -> Optional[FlightNode]:
         if data is None:
             return None
+
         node = dict_to_node(data)
         left_data = data.get("left") if "left" in data else data.get("izquierdo")
         right_data = data.get("right") if "right" in data else data.get("derecho")
+
         node.left = self._build_from_dict(left_data)
         node.right = self._build_from_dict(right_data)
+        if node.left is not None:
+            node.left.parent = node
+        if node.right is not None:
+            node.right.parent = node
+
         self._update_height(node)
         self._get_balance(node)
         return node
@@ -449,14 +475,12 @@ class AVLTree:
         return node.height if node else 0
 
     def _update_height(self, node: FlightNode) -> None:
-        node.height = 1 + max(
-            self._get_height(node.left),
-            self._get_height(node.right),
-        )
+        node.height = 1 + max(self._get_height(node.left), self._get_height(node.right))
 
     def _get_balance(self, node: Optional[FlightNode]) -> int:
         if node is None:
             return 0
+
         bf = self._get_height(node.left) - self._get_height(node.right)
         node.balance_factor = bf
         return bf
