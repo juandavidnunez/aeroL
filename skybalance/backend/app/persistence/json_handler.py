@@ -98,9 +98,8 @@ class JSONHandler:
         if not data:
             return None
         
-        # Acepta nombres en español E inglés
         node = FlightNode(
-            code=str(data.get("codigo", data.get("code", ""))),  # ← español e inglés
+            code=str(data.get("codigo", data.get("code", ""))),
             origin=data.get("origen", data.get("origin", "")),
             destination=data.get("destino", data.get("destination", "")),
             base_price=float(data.get("precioBase", data.get("base_price", 0))),
