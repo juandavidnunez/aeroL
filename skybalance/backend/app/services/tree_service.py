@@ -2,22 +2,91 @@
 TreeService: orchestrates AVL operations and persistence.
 """
 import copy
+
 from app.core import state
-from app.models.flight_node import FlightNode
+from app.models.avl_tree import AVLTree
+from app.models.bst_tree import BSTTree
+from app.utils.serializer import dict_to_node
 
 
 def _snapshot() -> dict:
     return copy.deepcopy(state.avl_tree.to_dict())
 
 
+def _stats_for(tree, tree_type: str) -> dict:
+    rotations = getattr(tree, "rotations", {"LL": 0, "RR": 0, "LR": 0, "RL": 0})
+    mass_cancellations = getattr(tree, "mass_cancellation_count", 0)
+    return {
+        "tree_type": tree_type,
+        "root_code": tree.root.code if tree.root else None,
+        "total_height": tree.height(),
+        "leaf_count": tree.leaf_count(),
+        "node_count": tree.node_count() if hasattr(tree, "node_count") else 0,
+        "rotations": rotations,
+        "mass_cancellations": mass_cancellations,
+    }
+
+
 def load_from_json(data: dict, mode: str) -> dict:
     """
     mode='topology'  -> rebuild respecting parent/child structure.
     mode='insertion' -> insert one by one (AVL + BST in parallel).
-    Returns comparison stats if mode=='insertion'.
+    Returns comparison stats for the UI.
     """
-    # TODO: implement
-    return {}
+    normalized_mode = (mode or "").strip().lower()
+    if not normalized_mode and isinstance(data, dict):
+        normalized_mode = str(data.get("mode", data.get("modo", ""))).strip().lower()
+
+    if normalized_mode not in {"topology", "insertion"}:
+        raise ValueError("El modo debe ser 'topology' o 'insertion'.")
+
+    previous_snapshot = _snapshot()
+    new_avl = AVLTree()
+    new_bst = BSTTree()
+
+    if normalized_mode == "topology":
+        payload = data
+        if isinstance(data, dict):
+            payload = (
+                data.get("tree")
+                or data.get("root")
+                or data.get("arbol")
+                or data.get("raiz")
+                or data
+            )
+        new_avl.from_topology(payload)
+    else:
+        if isinstance(data, list):
+            flights = data
+        elif isinstance(data, dict):
+            flights = data.get("flights") or data.get("vuelos") or []
+        else:
+            flights = []
+
+        if not isinstance(flights, list) or len(flights) == 0:
+            raise ValueError("Para el modo 'insertion' se requiere una lista 'flights' o 'vuelos'.")
+
+        try:
+            for flight in flights:
+                new_avl.insert(dict_to_node(flight))
+                new_bst.insert(dict_to_node(flight))
+        except (TypeError, KeyError, ValueError) as exc:
+            raise ValueError(f"El JSON de vuelos no tiene el formato esperado: {exc}") from exc
+
+    if previous_snapshot.get("root") is not None:
+        state.undo_stack.append(previous_snapshot)
+
+    state.avl_tree = new_avl
+    state.bst_tree = new_bst
+
+    return {
+        "mode": normalized_mode,
+        "message": f"Árbol cargado correctamente en modo {normalized_mode}.",
+        "avl": state.avl_tree.to_dict(),
+        "bst": state.bst_tree.to_dict(),
+        "avl_stats": _stats_for(state.avl_tree, "avl"),
+        "bst_stats": _stats_for(state.bst_tree, "bst"),
+    }
 
 
 def undo_last_action() -> bool:
