@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.schemas.queue_schema import EnqueueRequest, QueueStatusResponse
+from app.schemas.queue_schema import EnqueueRequest, QueueStatusResponse, ProcessStepResponse
 from app.services import queue_service
 
 router = APIRouter()
@@ -18,6 +18,11 @@ def enqueue(request: EnqueueRequest):
 def process():
     log = queue_service.process_queue()
     return {"processed": len(log), "log": log}
+
+@router.post("/process-step", response_model=ProcessStepResponse)
+def process_step():
+    result = queue_service.process_queue_step()
+    return result
 
 @router.delete("/clear")
 def clear():
