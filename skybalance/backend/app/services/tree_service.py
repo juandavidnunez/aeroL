@@ -110,6 +110,13 @@ def restore_named_version(name: str) -> bool:
     return True
 
 
+def delete_named_version(name: str) -> bool:
+    if name in state.named_versions:
+        del state.named_versions[name]
+        return True
+    return False
+
+
 def set_critical_depth(depth: int) -> None:
     state.critical_depth = depth
     state.avl_tree.apply_depth_penalties(depth)

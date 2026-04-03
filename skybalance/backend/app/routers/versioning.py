@@ -20,3 +20,10 @@ def restore_version(name: str):
     if not ok:
         raise HTTPException(status_code=404, detail="Version not found")
     return {"restored": name}
+
+@router.delete("/{name}")
+def delete_version(name: str):
+    ok = tree_service.delete_named_version(name)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return {"deleted": name}
