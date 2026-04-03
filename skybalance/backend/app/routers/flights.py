@@ -9,6 +9,15 @@ def create_flight(data: FlightCreate):
     node = flight_service.add_flight(data.model_dump())
     return {"code": node.code, "message": "Flight inserted"}
 
+# IMPORTANTE: este endpoint debe ir ANTES de /{code}
+# de lo contrario FastAPI interpreta "least-profitable" como un {code}
+@router.delete("/least-profitable")
+def eliminate_least_profitable():
+    result = flight_service.eliminate_least_profitable()
+    if result is None:
+        raise HTTPException(status_code=404, detail="No hay vuelos en el árbol")
+    return result
+
 @router.get("/{code}")
 def get_flight(code: str):
     node = flight_service.get_flight(code)
@@ -34,10 +43,3 @@ def delete_flight(code: str):
 def cancel_flight(code: str):
     removed = flight_service.cancel_flight(code)
     return {"cancelled": True, "nodes_removed": removed}
-
-@router.delete("/least-profitable")
-def eliminate_least_profitable():
-    code = flight_service.eliminate_least_profitable()
-    if code is None:
-        raise HTTPException(status_code=404, detail="No flights in tree")
-    return {"eliminated_code": code}
