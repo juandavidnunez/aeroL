@@ -66,9 +66,19 @@ def undo():
     return {"undone": True}
 
 
+@router.get("/critical-depth")
+def get_critical_depth():
+    """Obtener la profundidad crítica actual"""
+    print(f"🔵 GET /critical-depth - Retornando: {state.critical_depth}")
+    return {"critical_depth": state.critical_depth}
+
+
 @router.put("/critical-depth/{depth}")
 def set_critical_depth(depth: int):
+    """Establecer profundidad crítica y recalcular penalizaciones"""
+    print(f"🟠 PUT /critical-depth/{depth} - Antes: {state.critical_depth}")
     tree_service.set_critical_depth(depth)
+    print(f"✅ PUT /critical-depth/{depth} - Después: {state.critical_depth}")
     return {"critical_depth": depth}
 
 

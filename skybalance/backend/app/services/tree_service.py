@@ -79,6 +79,15 @@ def load_from_json(data: dict, mode: str) -> dict:
     state.avl_tree = new_avl
     state.bst_tree = new_bst
 
+    # Apply critical depth penalties to newly loaded trees
+    print(f"🟢 load_from_json() - Aplicando penalizaciones con profundidad crítica = {state.critical_depth}")
+    state.avl_tree.apply_depth_penalties(state.critical_depth)
+    state.bst_tree.apply_depth_penalties(state.critical_depth)
+    
+    avl_critical = sum(1 for node in state.avl_tree.bfs() if node.is_critical)
+    bst_critical = sum(1 for node in state.bst_tree.bfs() if node.is_critical)
+    print(f"   AVL: {avl_critical} nodos críticos | BST: {bst_critical} nodos críticos")
+
     return {
         "mode": normalized_mode,
         "message": f"Árbol cargado correctamente en modo {normalized_mode}.",
@@ -118,8 +127,21 @@ def delete_named_version(name: str) -> bool:
 
 
 def set_critical_depth(depth: int) -> None:
+    """Set critical depth and apply penalties to all nodes in both trees"""
+    print(f"🔧 tree_service.set_critical_depth({depth})")
     state.critical_depth = depth
+    
+    # Aplicar penalizaciones a AVL
     state.avl_tree.apply_depth_penalties(depth)
+    avl_critical = sum(1 for node in state.avl_tree.bfs() if node.is_critical)
+    print(f"   AVL: {avl_critical} nodos críticos")
+    
+    # Aplicar penalizaciones a BST
+    state.bst_tree.apply_depth_penalties(depth)
+    bst_critical = sum(1 for node in state.bst_tree.bfs() if node.is_critical)
+    print(f"   BST: {bst_critical} nodos críticos")
+    
+    print(f"✅ Profundidad crítica actualizada a {depth}")
 
 
 def push_undo_snapshot() -> None:
