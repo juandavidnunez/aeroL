@@ -73,11 +73,13 @@ def load_from_json(data: dict, mode: str) -> dict:
         except (TypeError, KeyError, ValueError) as exc:
             raise ValueError(f"El JSON de vuelos no tiene el formato esperado: {exc}") from exc
 
-    if previous_snapshot.get("root") is not None:
-        state.undo_stack.append(previous_snapshot)
+    # IMPORTANTE: NO guardar snapshot al cargar archivo para que deshacer no vuelva a archivos anteriores
+    # El undo_stack solo debe contener cambios DENTRO del archivo actual
 
     state.avl_tree = new_avl
     state.bst_tree = new_bst
+    # Limpiar el undo_stack al cargar un nuevo archivo
+    state.undo_stack.clear()
 
     # Apply critical depth penalties to newly loaded trees
     print(f"🟢 load_from_json() - Aplicando penalizaciones con profundidad crítica = {state.critical_depth}")
@@ -87,6 +89,11 @@ def load_from_json(data: dict, mode: str) -> dict:
     avl_critical = sum(1 for node in state.avl_tree.bfs() if node.is_critical)
     bst_critical = sum(1 for node in state.bst_tree.bfs() if node.is_critical)
     print(f"   AVL: {avl_critical} nodos críticos | BST: {bst_critical} nodos críticos")
+    
+    # Guardar snapshot base del archivo cargado
+    # Permite deshacer cambios dentro del archivo sin volver a archivos anteriores
+    state.undo_stack.append(_snapshot())
+    print(f"✅ Snapshot base guardado para permitir deshacer")
 
     return {
         "mode": normalized_mode,
