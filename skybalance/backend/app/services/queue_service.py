@@ -38,7 +38,7 @@ def process_queue_step() -> dict:
         # Check for critical balance issues
         balance_conflicts = []
         if after_height > state.critical_depth:
-            balance_conflicts.append(f"Height exceeded critical depth ({state.critical_depth})")
+            balance_conflicts.append(f"Altura excede la profundidad crítica ({state.critical_depth})")
 
         # Check for excessive rotations
         rotation_increase = {
@@ -48,7 +48,7 @@ def process_queue_step() -> dict:
 
         total_rotations = sum(rotation_increase.values())
         if total_rotations > 2:  # More than 2 rotations might indicate imbalance
-            balance_conflicts.append(f"High rotation count ({total_rotations} rotations)")
+            balance_conflicts.append(f"Alto conteo de rotaciones ({total_rotations} rotaciones)")
 
         return {
             "status": "inserted",
