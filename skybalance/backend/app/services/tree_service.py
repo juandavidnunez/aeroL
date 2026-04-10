@@ -40,6 +40,30 @@ def load_from_json(data: dict, mode: str) -> dict:
     if normalized_mode not in {"topology", "insertion"}:
         raise ValueError("El modo debe ser 'topology' o 'insertion'.")
 
+    # Autocorrección defensiva del modo cuando frontend o archivo vienen ambiguos.
+    # Si el modo recibido es 'insertion' pero el payload parece topología, forzamos topología.
+    if normalized_mode == "insertion" and isinstance(data, dict):
+        topology_payload = (
+            data.get("tree")
+            or data.get("root")
+            or data.get("arbol")
+            or data.get("raiz")
+            or data
+        )
+        has_flights = isinstance(data.get("flights") or data.get("vuelos"), list)
+        if isinstance(topology_payload, dict):
+            has_code = isinstance(topology_payload.get("code"), str)
+            has_children = ("left" in topology_payload) or ("right" in topology_payload)
+            if has_code and has_children and not has_flights:
+                normalized_mode = "topology"
+
+    # Autocorrección inversa: si llega 'topology' pero realmente es lista de vuelos.
+    if normalized_mode == "topology":
+        if isinstance(data, list):
+            normalized_mode = "insertion"
+        elif isinstance(data, dict) and isinstance(data.get("flights") or data.get("vuelos"), list):
+            normalized_mode = "insertion"
+
     previous_snapshot = _snapshot()
     new_avl = AVLTree()
     new_bst = BSTTree()
