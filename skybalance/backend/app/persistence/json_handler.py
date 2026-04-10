@@ -40,6 +40,10 @@ class JSONHandler:
         if "root" in data or "raiz" in data:
             return self._load_topology(data)
         
+        # Si tiene "tree" (para sample_topology.json)
+        if "tree" in data:
+            return self._load_topology({"root": data["tree"]})
+        
         # Si tiene "vuelos" o "flights"
         if "vuelos" in data or "flights" in data or "lista" in data:
             return self._load_insertion_list(data)

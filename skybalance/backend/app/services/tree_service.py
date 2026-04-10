@@ -33,10 +33,12 @@ def load_from_json(data: dict, mode: str) -> dict:
     mode='insertion' -> insert one by one (AVL + BST in parallel).
     Returns comparison stats for the UI.
     """
+    print(f"load_from_json called with mode: {mode}, data keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
     normalized_mode = (mode or "").strip().lower()
     if not normalized_mode and isinstance(data, dict):
         normalized_mode = str(data.get("mode", data.get("modo", ""))).strip().lower()
 
+    print(f"normalized_mode: {normalized_mode}")
     if normalized_mode not in {"topology", "insertion"}:
         raise ValueError("El modo debe ser 'topology' o 'insertion'.")
 
@@ -51,11 +53,14 @@ def load_from_json(data: dict, mode: str) -> dict:
             or data
         )
         has_flights = isinstance(data.get("flights") or data.get("vuelos"), list)
+        print(f"topology_payload type: {type(topology_payload)}, has_flights: {has_flights}")
         if isinstance(topology_payload, dict):
-            has_code = isinstance(topology_payload.get("code"), str)
-            has_children = ("left" in topology_payload) or ("right" in topology_payload)
+            has_code = isinstance(topology_payload.get("code") or topology_payload.get("codigo"), str)
+            has_children = ("left" in topology_payload) or ("right" in topology_payload) or ("izquierdo" in topology_payload) or ("derecho" in topology_payload)
+            print(f"has_code: {has_code}, has_children: {has_children}")
             if has_code and has_children and not has_flights:
                 normalized_mode = "topology"
+                print("Switched to topology mode")
 
     # Autocorrección inversa: si llega 'topology' pero realmente es lista de vuelos.
     if normalized_mode == "topology":
@@ -63,6 +68,8 @@ def load_from_json(data: dict, mode: str) -> dict:
             normalized_mode = "insertion"
         elif isinstance(data, dict) and isinstance(data.get("flights") or data.get("vuelos"), list):
             normalized_mode = "insertion"
+
+    print(f"Final mode: {normalized_mode}")
 
     previous_snapshot = _snapshot()
     new_avl = AVLTree()
