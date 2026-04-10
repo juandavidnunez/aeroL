@@ -4,6 +4,7 @@ from app.core import state
 def get_metrics() -> dict:
     tree = state.avl_tree
     return {
+        "root_code": tree.root.code if tree.root else None,
         "height": tree.height(),
         "leaf_count": tree.leaf_count(),
         "node_count": tree.node_count(),
