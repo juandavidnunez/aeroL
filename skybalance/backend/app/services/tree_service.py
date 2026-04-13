@@ -10,7 +10,10 @@ from app.utils.serializer import dict_to_node
 
 
 def _snapshot() -> dict:
-    return copy.deepcopy(state.avl_tree.to_dict())
+    return {
+        "avl": copy.deepcopy(state.avl_tree.to_dict()),
+        "bst": copy.deepcopy(state.bst_tree.to_dict())
+    }
 
 
 def _stats_for(tree, tree_type: str) -> dict:
@@ -140,7 +143,8 @@ def undo_last_action() -> bool:
     if not state.undo_stack:
         return False
     snapshot = state.undo_stack.pop()
-    state.avl_tree.from_topology(snapshot)
+    state.avl_tree.from_topology(snapshot["avl"]["root"])
+    state.bst_tree.from_topology(snapshot["bst"]["root"])
     return True
 
 
@@ -153,7 +157,8 @@ def restore_named_version(name: str) -> bool:
     if snap is None:
         return False
     state.undo_stack.append(_snapshot())
-    state.avl_tree.from_topology(snap)
+    state.avl_tree.from_topology(snap["avl"]["root"])
+    state.bst_tree.from_topology(snap["bst"]["root"])
     return True
 
 

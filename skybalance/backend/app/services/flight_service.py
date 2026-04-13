@@ -7,16 +7,17 @@ from typing import Optional
 
 def add_flight(data: dict) -> FlightNode:
     push_undo_snapshot()
-    node = FlightNode(**data)
+    node_avl = FlightNode(**data)
+    node_bst = FlightNode(**data)
 
-    state.avl_tree.insert(node)
+    state.avl_tree.insert(node_avl)
     # Solo insertar en BST si tiene contenido (modo inserción)
     if state.bst_tree.root is not None:
-        state.bst_tree.insert(node)
+        state.bst_tree.insert(node_bst)
     state.avl_tree.apply_depth_penalties(state.critical_depth)
     if state.bst_tree.root is not None:
         state.bst_tree.apply_depth_penalties(state.critical_depth)  # Aplicar penalizaciones a ambos
-    return node
+    return node_avl
 
 
 def remove_flight(code: str) -> bool:

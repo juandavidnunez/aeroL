@@ -7,7 +7,7 @@ from collections import deque
 from typing import Optional
 
 from app.models.flight_node import FlightNode
-from app.utils.serializer import node_to_dict
+from app.utils.serializer import node_to_dict, dict_to_node
 
 
 class BSTTree:
@@ -25,6 +25,38 @@ class BSTTree:
 
     def to_dict(self) -> dict:
         return {"root": node_to_dict(self.root)}
+
+    def from_topology(self, data: Optional[dict]) -> None:
+        if data is None:
+            self.root = None
+            return
+
+        payload = data
+        if isinstance(data, dict):
+            payload = data.get("tree") or data.get("root") or data.get("arbol") or data.get("raiz") or data
+
+        self.root = self._build_from_dict(payload)
+        if self.root is not None:
+            self.root.parent = None
+
+    def _build_from_dict(self, data: Optional[dict]) -> Optional[FlightNode]:
+        if data is None:
+            return None
+
+        node = dict_to_node(data)
+        left_data = data.get("left") if "left" in data else data.get("izquierdo")
+        right_data = data.get("right") if "right" in data else data.get("derecho")
+
+        node.left = self._build_from_dict(left_data)
+        node.right = self._build_from_dict(right_data)
+        if node.left is not None:
+            node.left.parent = node
+        if node.right is not None:
+            node.right.parent = node
+
+        node.height = 1 + max(self._height(node.left), self._height(node.right))
+        node.balance_factor = self._height(node.left) - self._height(node.right)
+        return node
 
     def height(self) -> int:
         return self._height(self.root)
